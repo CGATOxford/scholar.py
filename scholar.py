@@ -965,12 +965,16 @@ class ScholarQuerier(object):
         ScholarUtils.log('info', 'settings applied')
         return True
 
-    def send_query(self, query):
+    def send_query(self, query, append=False):
         """
         This method initiates a search query (a ScholarQuery instance)
         with subsequent parsing of the response.
+
+        If append is set to True, new queries will be appended
+        to the result.
         """
-        self.clear_articles()
+        if not append:
+            self.clear_articles()
         self.query = query
 
         html = self._get_http_response(url=query.get_url(),
@@ -1171,6 +1175,11 @@ scholar.py -c 5 -a "albert einstein" -t --none "quantum theory" --after 1970"""
                      help='Show version information')
     parser.add_option_group(group)
 
+    parser.add_option('--filename-phrases', type='string', metavar='FILE',
+                     dest="filename_queries",
+                     default=None,
+                     help="filename with list of queries")
+
     options, _ = parser.parse_args()
 
     # Show help if we have neither keyword search nor author name
@@ -1241,11 +1250,19 @@ scholar.py -c 5 -a "albert einstein" -t --none "quantum theory" --after 1970"""
         if options.no_citations:
             query.set_include_citations(False)
 
-    if options.count is not None:
-        options.count = min(options.count, ScholarConf.MAX_PAGE_RESULTS)
-        query.set_num_page_results(options.count)
+    if options.filename_queries:
+        with open(options.filename_queries) as inf:
+            for phrase in inf:
+                if phrase.startswith("#"):
+                    continue
+                query.set_phrase(phrase)
+                querier.send_query(query, append=True)
+    else:
+        if options.count is not None:
+            options.count = min(options.count, ScholarConf.MAX_PAGE_RESULTS)
+            query.set_num_page_results(options.count)
 
-    querier.send_query(query)
+        querier.send_query(query)
 
     if options.csv:
         csv(querier)
